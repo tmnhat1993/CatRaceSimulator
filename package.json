@@ -1,0 +1,15 @@
+{
+  "name": "cat-race-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:styles": "sass src/styles/main.scss:src/styles/main.css --style=expanded",
+    "watch:styles": "sass --watch src/styles/main.scss:src/styles/main.css",
+    "dev": "npm run build:styles && http-server . -c-1 -p 5173"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "sass": "1.32.13"
+  }
+}
