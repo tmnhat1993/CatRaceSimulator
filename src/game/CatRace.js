@@ -3,11 +3,32 @@ import {
   CAT_W,
   CAT_H,
   H,
+  FINISH_PACE_BOOST,
+  FINISH_RUSH_EXPONENT,
+  FINISH_SLUMP_DECAY,
+  FINISH_SURGE_BOOST,
   LEADER_SCREEN_X,
+  RACE_VIEW_EXIT_MARGIN,
+  SPEED_FACTOR_CAP,
+  SPEED_FACTOR_FLOOR,
+  SPEED_FACTOR_FLOOR_LEAD_PACK,
+  TOP_LEAD_FLOOR_FRACTION,
+  SURGE_FATIGUE_BUILD,
+  SURGE_FATIGUE_DAMP,
+  SURGE_FATIGUE_ESCALATION,
+  SURGE_FATIGUE_RECOVERY,
+  SURGE_STRAIN_CAP,
+  SURGE_STRAIN_DECAY,
+  SURGE_STRAIN_WEIGHT,
   NUM_SPRITES,
   RACE_SECS,
   RANK_BAR_H,
   STATES,
+  TOP_PACK_RANK_COUNT,
+  TOP_PACK_PACE_MULT,
+  TOP_PACK_SURGE_MULT,
+  TAIL_PACK_FRACTION,
+  TAIL_PACK_SURGE_MULT,
   TRACK_LENGTH,
   W,
 } from "../constants.js";
@@ -37,6 +58,9 @@ export default class CatRace {
     this.rankSlots = [];
     this.prevTopIds = [];
     this.confetti = [];
+    this.finishOrder = [];
+    this.simFrozen = false;
+    this.freezeAnimT = 0;
     this.spriteCache = {};
     this.catH = CAT_H;
     this.catW = CAT_W;
@@ -60,6 +84,7 @@ export default class CatRace {
       ["mainBg", `${ASSET_BASE}/main-bg.jpg`],
       ["road", `${ASSET_BASE}/road-sprite.png`],
       ["winner", `${ASSET_BASE}/winner.png`],
+      ["beginTxt", `${ASSET_BASE}/begin-txt.png`],
       ["num3", `${ASSET_BASE}/number-3.png`],
       ["num2", `${ASSET_BASE}/number-2.png`],
       ["num1", `${ASSET_BASE}/number-1.png`],
@@ -102,6 +127,9 @@ export default class CatRace {
     this.state = STATES.START;
     this.bgX = 0;
     this.winner = null;
+    this.finishOrder = [];
+    this.simFrozen = false;
+    this.freezeAnimT = 0;
     this.cats = [];
   }
 
@@ -109,6 +137,9 @@ export default class CatRace {
     this.state = STATES.STAGING;
     this.bgX = 0;
     this.winner = null;
+    this.finishOrder = [];
+    this.simFrozen = false;
+    this.freezeAnimT = 0;
     this.raceElapsed = 0;
     this.stagingT = 0;
     this.catH = CAT_H;
@@ -147,9 +178,12 @@ export default class CatRace {
       surgeA: 0.22 + Math.random() * 0.28,
       surgeFreq: 0.06 + Math.random() * 0.2,
       surgePhase: Math.random() * Math.PI * 2,
+      surgeFatigue: 0,
+      surgeStrain: 0,
       slumpA: 0.14 + Math.random() * 0.22,
       slumpFreq: 0.08 + Math.random() * 0.2,
       slumpPhase: Math.random() * Math.PI * 2,
+      hasFinished: false,
     }));
 
     this.initRankSlots();
@@ -169,6 +203,8 @@ export default class CatRace {
 
     const avgSpd = this.finishLine / RACE_SECS;
     for (const c of this.cats) {
+      c.surgeFatigue = 0;
+      c.surgeStrain = 0;
       c.baseSpeed = avgSpd * (0.76 + Math.random() * 0.62) * c.tempoBias;
     }
     this.initRankSlots();
@@ -229,32 +265,101 @@ export default class CatRace {
         this.cdValue -= 1;
         if (this.cdValue < 0) this.enterRacing();
       }
-    } else if (this.state === STATES.RACING) {
-      this.raceElapsed += dt;
-      let newWinner = null;
-      for (const c of this.cats) {
-        const sf = 1
-          + c.sineA[0] * Math.sin(t * c.sineFreq[0] * Math.PI * 2 + c.sinePhase[0])
-          + c.sineA[1] * Math.sin(t * c.sineFreq[1] * Math.PI * 2 + c.sinePhase[1])
-          + c.surgeA * Math.sin(t * c.surgeFreq * Math.PI * 2 + c.surgePhase)
-          - c.slumpA * Math.sin(t * c.slumpFreq * Math.PI * 2 + c.slumpPhase);
-        c.worldX += c.baseSpeed * Math.max(0.18, sf) * dt;
-        if (!this.winner && c.worldX >= this.finishLine) newWinner = c;
+    } else if (this.state === STATES.RACING || this.state === STATES.FINISHED) {
+      if (this.state === STATES.RACING) this.raceElapsed += dt;
+
+      if (!this.simFrozen) {
+        let maxX = 0;
+        for (const c of this.cats) maxX = Math.max(maxX, c.worldX);
+        const leadProgress = Math.min(1, maxX / this.finishLine);
+        const rush = Math.pow(leadProgress, FINISH_RUSH_EXPONENT);
+        const paceMult = 1 + FINISH_PACE_BOOST * rush;
+        const surgeMult = 1 + FINISH_SURGE_BOOST * rush;
+        const slumpMult = 1 - FINISH_SLUMP_DECAY * rush;
+
+        const sortedByX = [...this.cats].sort((a, b) => b.worldX - a.worldX);
+        const topPack = new Set(
+          sortedByX.slice(0, Math.min(TOP_PACK_RANK_COUNT, sortedByX.length)).map((c) => c.id),
+        );
+        const leadFloorN = Math.max(
+          1,
+          Math.ceil(this.numCats * TOP_LEAD_FLOOR_FRACTION),
+        );
+        const leadFloorPack = new Set(
+          sortedByX.slice(0, Math.min(leadFloorN, sortedByX.length)).map((c) => c.id),
+        );
+        const tailN = Math.ceil(this.numCats * TAIL_PACK_FRACTION);
+        const sortedAsc = [...this.cats].sort((a, b) => a.worldX - b.worldX);
+        const tailPack = new Set(
+          sortedAsc.slice(0, Math.min(tailN, sortedAsc.length)).map((c) => c.id),
+        );
+
+        for (const c of this.cats) {
+          const surgeSin = Math.sin(t * c.surgeFreq * Math.PI * 2 + c.surgePhase);
+          if (surgeSin > 0) {
+            c.surgeStrain += dt * surgeSin;
+            const strainMult =
+              1 + SURGE_STRAIN_WEIGHT * Math.min(c.surgeStrain, SURGE_STRAIN_CAP);
+            const escalate = 1 + SURGE_FATIGUE_ESCALATION * c.surgeFatigue;
+            c.surgeFatigue = Math.min(
+              1,
+              c.surgeFatigue + dt * SURGE_FATIGUE_BUILD * surgeSin * strainMult * escalate,
+            );
+          } else {
+            c.surgeFatigue = Math.max(0, c.surgeFatigue - dt * SURGE_FATIGUE_RECOVERY);
+            c.surgeStrain = Math.max(0, c.surgeStrain - dt * SURGE_STRAIN_DECAY);
+          }
+          const surgeEff = 1 - SURGE_FATIGUE_DAMP * c.surgeFatigue;
+          let packSurgeMult = topPack.has(c.id) ? TOP_PACK_SURGE_MULT : 1;
+          if (tailPack.has(c.id)) packSurgeMult *= TAIL_PACK_SURGE_MULT;
+
+          let sf = 1
+            + c.sineA[0] * Math.sin(t * c.sineFreq[0] * Math.PI * 2 + c.sinePhase[0])
+            + c.sineA[1] * Math.sin(t * c.sineFreq[1] * Math.PI * 2 + c.sinePhase[1])
+            + c.surgeA * surgeMult * surgeEff * packSurgeMult * surgeSin
+            - c.slumpA * slumpMult * Math.sin(t * c.slumpFreq * Math.PI * 2 + c.slumpPhase);
+          const sfFloor = leadFloorPack.has(c.id)
+            ? SPEED_FACTOR_FLOOR_LEAD_PACK
+            : SPEED_FACTOR_FLOOR;
+          sf = Math.min(SPEED_FACTOR_CAP, Math.max(sfFloor, sf));
+          const frontPace = topPack.has(c.id) ? TOP_PACK_PACE_MULT : 1;
+          c.worldX += c.baseSpeed * paceMult * sf * frontPace * dt;
+        }
+
+        const newlyFinished = this.cats.filter(
+          (c) => c.worldX >= this.finishLine && !c.hasFinished,
+        );
+        newlyFinished.sort((a, b) => b.worldX - a.worldX);
+        for (const c of newlyFinished) {
+          c.hasFinished = true;
+          this.finishOrder.push(c);
+        }
+
+        const leader = this.cats.reduce((best, c) =>
+          c.worldX > best.worldX ? c : best,
+        this.cats[0]);
+        const target = -(leader.worldX - LEADER_SCREEN_X);
+        const nextBgX = Math.min(0, target);
+        const bgClamp = LEADER_SCREEN_X - this.finishLine;
+        this.bgX = Math.max(nextBgX, bgClamp);
+
+        let minWX = Infinity;
+        for (const c of this.cats) minWX = Math.min(minWX, c.worldX);
+        const trailerScreenCenter = minWX + this.bgX;
+        if (trailerScreenCenter + this.catW * 0.5 > W + RACE_VIEW_EXIT_MARGIN) {
+          this.simFrozen = true;
+          this.freezeAnimT = t;
+        }
+
+        if (this.state === STATES.RACING && !this.winner && this.finishOrder.length > 0) {
+          this.winner = this.finishOrder[0];
+          this.state = STATES.FINISHED;
+          this.spawnConfetti();
+        }
       }
 
-      const leader = this.cats.reduce((best, c) => (c.worldX > best.worldX ? c : best), this.cats[0]);
-      const target = -(leader.worldX - LEADER_SCREEN_X);
-      this.bgX = Math.min(0, target);
-
-      this.updateRankSlots(dt);
-      if (newWinner) {
-        this.winner = newWinner;
-        this.state = STATES.FINISHED;
-        this.spawnConfetti();
-      }
-    } else if (this.state === STATES.FINISHED) {
-      this.updateRankSlots(dt);
-      this.updateConfetti(dt);
+      if (!this.simFrozen) this.updateRankSlots(dt);
+      if (this.state === STATES.FINISHED && !this.simFrozen) this.updateConfetti(dt);
     }
   }
 
@@ -295,7 +400,7 @@ export default class CatRace {
       if (this.state === STATES.RACING || this.state === STATES.FINISHED) {
         this.drawFinishLine();
       }
-      this.drawCats(t);
+      this.drawCats(this.simFrozen ? this.freezeAnimT : t);
     }
 
     if (this.state === STATES.COUNTDOWN) this.drawCountdown(t);
@@ -451,18 +556,31 @@ export default class CatRace {
       ctx.drawImage(img, (W - iw) / 2, (H - ih) / 2 - 10, iw, ih);
       ctx.restore();
     } else {
-      const sz = Math.round(100 * pulse);
-      ctx.save();
-      ctx.font = `bold ${sz}px Arial Black, Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.lineWidth = 8;
-      ctx.strokeStyle = "#000";
-      ctx.strokeText("BEGIN!", W / 2, H / 2);
-      ctx.fillStyle = "#00ee88";
-      ctx.fillText("BEGIN!", W / 2, H / 2);
-      ctx.textBaseline = "alphabetic";
-      ctx.restore();
+      const beginImg = this.images.beginTxt;
+      if (beginImg && beginImg.complete && beginImg.naturalWidth) {
+        const maxW = Math.min(W * 0.88, 560);
+        const scale =
+          Math.min(maxW / beginImg.width, (H * 0.22) / beginImg.height) * pulse;
+        const iw = beginImg.width * scale;
+        const ih = beginImg.height * scale;
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(beginImg, (W - iw) / 2, (H - ih) / 2 - 10, iw, ih);
+        ctx.restore();
+      } else {
+        const sz = Math.round(100 * pulse);
+        ctx.save();
+        ctx.font = `bold ${sz}px Arial Black, Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = "#000";
+        ctx.strokeText("BEGIN!", W / 2, H / 2);
+        ctx.fillStyle = "#00ee88";
+        ctx.fillText("BEGIN!", W / 2, H / 2);
+        ctx.textBaseline = "alphabetic";
+        ctx.restore();
+      }
     }
   }
 
@@ -616,44 +734,75 @@ export default class CatRace {
 
     if (this.images.winner) {
       const img = this.images.winner;
-      const scale = Math.min(580 / img.width, 320 / img.height);
+      const scale = Math.min(580 / img.width, 280 / img.height);
       const iw = img.width * scale;
       const ih = img.height * scale;
-      ctx.drawImage(img, (W - iw) / 2, H * 0.04, iw, ih);
+      ctx.drawImage(img, (W - iw) / 2, H * 0.03, iw, ih);
     }
 
-    if (!this.winner) return;
-    const cat = this.winner;
-    const img = this.images[`cat${cat.sprite}`];
-    if (img) {
-      const ch = 190;
+    const podium = this.finishOrder.slice(0, 3);
+    if (!podium.length) return;
+
+    const baseY = H * 0.54;
+
+    const drawPodiumCat = (cat, cxCenter, ch, medalFill, medalStroke, medalLabel) => {
+      const img = this.images[`cat${cat.sprite}`];
       const cw = Math.round(ch * CAT_ASPECT);
-      const cx = (W - cw) / 2;
-      const cy = H * 0.5;
-      ctx.drawImage(img, cx, cy, cw, ch);
-      ctx.font = "bold 50px Arial Black, Arial";
+      const cx = Math.round(cxCenter - cw / 2);
+      const top = Math.round(baseY - ch);
+      if (img) ctx.drawImage(img, cx, top, cw, ch);
+
+      ctx.font = `bold ${Math.max(22, Math.round(ch * 0.26))}px Arial Black, Arial`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.lineWidth = 8;
-      ctx.strokeStyle = "rgba(0,0,0,0.9)";
-      ctx.strokeText(String(cat.id), cx + cw / 2, cy + ch * 0.48);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = "rgba(0,0,0,0.85)";
+      ctx.strokeText(String(cat.id), cxCenter, top + ch * 0.72);
       ctx.fillStyle = "#fff";
-      ctx.fillText(String(cat.id), cx + cw / 2, cy + ch * 0.48);
+      ctx.fillText(String(cat.id), cxCenter, top + ch * 0.72);
+
+      ctx.font = "bold 26px Arial Black, Arial";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = medalStroke;
+      ctx.strokeText(medalLabel, cxCenter, baseY + 22);
+      ctx.fillStyle = medalFill;
+      ctx.fillText(medalLabel, cxCenter, baseY + 22);
+    };
+
+    const first = podium[0];
+    const second = podium[1];
+    const third = podium[2];
+
+    if (podium.length >= 3) {
+      drawPodiumCat(second, W * 0.28, 128, "#e8e8e8", "#333", "NHÌ");
+      drawPodiumCat(first, W / 2, 172, "#FFD700", "#000", "NHẤT");
+      drawPodiumCat(third, W * 0.72, 128, "#CD7F32", "#2a1206", "BA");
+    } else if (podium.length === 2) {
+      drawPodiumCat(second, W * 0.36, 138, "#e8e8e8", "#333", "NHÌ");
+      drawPodiumCat(first, W * 0.58, 178, "#FFD700", "#000", "NHẤT");
+    } else {
+      drawPodiumCat(first, W / 2, 188, "#FFD700", "#000", "NHẤT");
     }
 
-    const label = `Cat #${cat.id} WINS!`;
-    ctx.font = "bold 42px Arial Black, Arial";
+    const footerMsg =
+      podium.length >= 3
+        ? "Nhất · Nhì · Ba — chúc mừng!"
+        : podium.length === 2
+          ? "Nhất · Nhì — đàn vẫn đang về đích…"
+          : "Nhất — đàn vẫn đang về đích…";
+
+    ctx.font = "bold 26px Arial Black, Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.lineWidth = 7;
+    ctx.lineWidth = 5;
     ctx.strokeStyle = "#000";
-    ctx.strokeText(label, W / 2, H * 0.9);
-    ctx.fillStyle = "#FFD700";
-    ctx.fillText(label, W / 2, H * 0.9);
+    ctx.strokeText(footerMsg, W / 2, H * 0.9);
+    ctx.fillStyle = "#ffe866";
+    ctx.fillText(footerMsg, W / 2, H * 0.9);
 
     ctx.font = "18px Arial";
     ctx.fillStyle = "rgba(255,255,255,0.75)";
-    ctx.fillText("Click to play again", W / 2, H * 0.96);
+    ctx.fillText("Click để chơi lại", W / 2, H * 0.96);
     ctx.textBaseline = "alphabetic";
   }
 }

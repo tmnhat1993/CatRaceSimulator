@@ -6,10 +6,12 @@
   "scripts": {
     "build:styles": "sass src/styles/main.scss:src/styles/main.css --style=expanded",
     "watch:styles": "sass --watch src/styles/main.scss:src/styles/main.css",
-    "dev": "npm run build:styles && http-server . -c-1 -p 5173"
+    "dev": "npm run build:styles && http-server . -c-1 -p 5173",
+    "compress:images": "node scripts/compress-images.mjs"
   },
   "devDependencies": {
     "http-server": "^14.1.1",
-    "sass": "1.32.13"
+    "sass": "1.32.13",
+    "sharp": "^0.34.5"
   }
 }
