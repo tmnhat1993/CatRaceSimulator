@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build-dist.mjs",
     "build:styles": "sass src/styles/main.scss:src/styles/main.css --style=expanded",
     "watch:styles": "sass --watch src/styles/main.scss:src/styles/main.css",
     "dev": "npm run build:styles && http-server . -c-1 -p 5173",
-    "compress:images": "node scripts/compress-images.mjs"
+    "compress:images": "node scripts/compress-images.mjs",
+    "deploy": "npm run build && bash scripts/push-deploy.sh"
   },
   "devDependencies": {
     "http-server": "^14.1.1",

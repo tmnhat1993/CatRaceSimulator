@@ -33,7 +33,7 @@ import {
   W,
 } from "../constants.js";
 
-const ASSET_BASE = "/assets/images";
+const ASSET_BASE = new URL("../../assets/images", import.meta.url).href.replace(/\/$/, "");
 
 export default class CatRace {
   constructor() {
