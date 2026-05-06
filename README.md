@@ -50,6 +50,39 @@ npm run dev
 
 Mac dinh server chay tai: [http://localhost:5173](http://localhost:5173)
 
+## Deploy (GitHub Pages + nhanh `deploy`)
+
+Kho lưu trữ cần có remote `origin` (ví dụ `https://github.com/tmnhat1993/CatRaceSimulator.git`).
+
+### Một lệnh (build + đẩy bản tĩnh)
+
+```bash
+npm install
+npm run deploy
+```
+
+- **`npm run build`**: chạy `scripts/build-dist.mjs` — biên dịch SCSS (CSS nén) vào `src/styles/main.css`, sau đó gom `index.html`, `assets/`, `src/` (bỏ file `.scss`) vào thư mục **`dist/`** (thư mục này nằm trong `.gitignore`, không commit lên `master`).
+- **`scripts/push-deploy.sh`**: tạo commit từ nội dung `dist/` và **`git push --force` lên nhánh `deploy`** trên `origin`. Bản chạy thật nằm trên nhánh `deploy`, không ghi đè lịch sử trên `master`.
+
+### Bật GitHub Pages
+
+Trên GitHub: **Settings → Pages → Build and deployment**: chọn **Branch `deploy`**, thư mục **`/` (root)**. Site kiểu `https://<user>.github.io/CatRaceSimulator/`.
+
+### Chỉ build cục bộ (không push)
+
+```bash
+npm run build
+```
+
+Kiểm tra: phục vụ thư mục `dist/` bằng bất kỳ static server nào (ví dụ `npx http-server dist -p 5173`).
+
+### Nén ảnh assets (tùy chọn, cần Node 18+)
+
+```bash
+nvm use 20   # hoặc Node >= 18
+npm run compress:images
+```
+
 ## Lam viec voi SCSS
 
 ```bash
@@ -63,6 +96,6 @@ npm run watch:styles
 ## Ghi chu ky thuat
 
 - Toan bo style duoc viet bang SCSS va bien dich ra `src/styles/main.css`.
-- Assets static dat trong `assets/images` de co duong dan on dinh `/assets/images/...`.
+- Assets trong `assets/images`; trong code dùng đường dẫn tương đối / `import.meta.url` để vừa chạy local vừa deploy GitHub Pages (project site).
 - Game logic duoc gom vao class `CatRace` de de mo rong them mode/logic trong tuong lai.
 - Co polyfill `roundRect` de dam bao tuong thich trinh duyet cu (Safari cu).
