@@ -45,7 +45,7 @@ export default class CatRace {
     this.state = STATES.START;
     this.images = {};
     this.cats = [];
-    this.numCats = 6;
+    this.numCats = 300;
 
     this.bgX = 0;
 
@@ -81,9 +81,6 @@ export default class CatRace {
           e.preventDefault();
           this.onStart();
         }
-      });
-      this.canvas.addEventListener("click", () => {
-        if (this.state === STATES.FINISHED) this.resetToStart();
       });
       requestAnimationFrame((t) => this.loop(t));
     });
@@ -127,7 +124,7 @@ export default class CatRace {
 
   onStart() {
     const v = parseInt(document.getElementById("catCount").value, 10);
-    this.numCats = Math.max(2, Math.min(300, Number.isNaN(v) ? 6 : v));
+    this.numCats = Math.max(2, Math.min(300, Number.isNaN(v) ? 300 : v));
     document.getElementById("startScreen").style.display = "none";
     this.enterStaging();
   }
@@ -512,7 +509,7 @@ export default class CatRace {
 
     const labelY = lineTop - 10;
     ctx.save();
-    ctx.font = "bold 14px Arial Black, Arial";
+    ctx.font = "bold 14px 'Be Vietnam Pro', sans-serif";
     ctx.textAlign = "center";
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 3;
@@ -538,7 +535,7 @@ export default class CatRace {
 
     const badgeR = Math.max(6, Math.round(this.catH * 0.2));
     const fontSize = Math.max(7, Math.round(this.catH * 0.225));
-    ctx.font = `bold ${fontSize}px Arial Black, Arial`;
+    ctx.font = `bold ${fontSize}px 'Be Vietnam Pro', sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -596,7 +593,7 @@ export default class CatRace {
       } else {
         const sz = Math.round(100 * pulse);
         ctx.save();
-        ctx.font = `bold ${sz}px Arial Black, Arial`;
+        ctx.font = `bold ${sz}px 'Be Vietnam Pro', sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.lineWidth = 8;
@@ -659,7 +656,7 @@ export default class CatRace {
       ctx.fillStyle = medal[slot.rank];
       ctx.fill();
 
-      ctx.font = "bold 16px Arial Black, Arial";
+      ctx.font = "bold 16px 'Be Vietnam Pro', sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = slot.rank < 3 ? "#000" : "#EEE";
@@ -672,7 +669,7 @@ export default class CatRace {
         ctx.drawImage(img, x + 32, barY + 2, mw, mh);
       }
 
-      ctx.font = "bold 15px Arial Black, Arial";
+      ctx.font = "bold 15px 'Be Vietnam Pro', sans-serif";
       ctx.textAlign = "left";
       ctx.fillStyle = "#fff";
       ctx.fillText(`Cat #${cat.id}`, x + 95, barY + slotH / 2);
@@ -748,7 +745,7 @@ export default class CatRace {
     ctx.fillStyle = "#fff";
     ctx.fillRect(bx + bw - 2, by - 4, 2, bh + 8);
 
-    ctx.font = "bold 11px Arial";
+    ctx.font = "bold 11px 'Be Vietnam Pro', sans-serif";
     ctx.textAlign = "right";
     ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.fillText(`${Math.round(pct * 100)}%`, bx + bw + 50, by + bh);
@@ -779,7 +776,7 @@ export default class CatRace {
       const top = Math.round(baseY - ch);
       if (img) ctx.drawImage(img, cx, top, cw, ch);
 
-      ctx.font = `bold ${Math.max(22, Math.round(ch * 0.26))}px Arial Black, Arial`;
+      ctx.font = `bold ${Math.max(22, Math.round(ch * 0.26))}px 'Be Vietnam Pro', sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineWidth = 5;
@@ -788,7 +785,7 @@ export default class CatRace {
       ctx.fillStyle = "#fff";
       ctx.fillText(String(cat.id), cxCenter, top + ch * 0.72);
 
-      ctx.font = "bold 26px Arial Black, Arial";
+      ctx.font = "bold 26px 'Be Vietnam Pro', sans-serif";
       ctx.lineWidth = 4;
       ctx.strokeStyle = medalStroke;
       ctx.strokeText(medalLabel, cxCenter, baseY + 22);
@@ -818,7 +815,7 @@ export default class CatRace {
           ? "Nhất · Nhì — đàn vẫn đang về đích…"
           : "Nhất — đàn vẫn đang về đích…";
 
-    ctx.font = "bold 26px Arial Black, Arial";
+    ctx.font = "bold 26px 'Be Vietnam Pro', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 5;
@@ -827,9 +824,6 @@ export default class CatRace {
     ctx.fillStyle = "#ffe866";
     ctx.fillText(footerMsg, W / 2, H * 0.9);
 
-    ctx.font = "18px Arial";
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    ctx.fillText("Click để chơi lại", W / 2, H * 0.96);
     ctx.textBaseline = "alphabetic";
   }
 }
