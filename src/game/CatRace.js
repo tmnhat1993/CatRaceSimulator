@@ -27,6 +27,8 @@ import {
   TOP_PACK_RANK_COUNT,
   TOP_PACK_PACE_MULT,
   TOP_PACK_SURGE_MULT,
+  RACE_LEADER_PACE_MULT,
+  RACE_LEADER_SURGE_MULT,
   TAIL_PACK_FRACTION,
   TAIL_PACK_SURGE_MULT,
   TRACK_LENGTH,
@@ -57,6 +59,8 @@ export default class CatRace {
 
     this.rankSlots = [];
     this.prevTopIds = [];
+    /** Top rank bar hidden after enough finishers; no further slot updates/animation. */
+    this.rankBarSuppressed = false;
     this.confetti = [];
     this.finishOrder = [];
     this.simFrozen = false;
@@ -72,6 +76,12 @@ export default class CatRace {
 
     this.loadAssets().then(() => {
       document.getElementById("startBtn").addEventListener("click", () => this.onStart());
+      document.getElementById("catCount").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.onStart();
+        }
+      });
       this.canvas.addEventListener("click", () => {
         if (this.state === STATES.FINISHED) this.resetToStart();
       });
@@ -128,6 +138,7 @@ export default class CatRace {
     this.bgX = 0;
     this.winner = null;
     this.finishOrder = [];
+    this.rankBarSuppressed = false;
     this.simFrozen = false;
     this.freezeAnimT = 0;
     this.cats = [];
@@ -138,6 +149,7 @@ export default class CatRace {
     this.bgX = 0;
     this.winner = null;
     this.finishOrder = [];
+    this.rankBarSuppressed = false;
     this.simFrozen = false;
     this.freezeAnimT = 0;
     this.raceElapsed = 0;
@@ -199,6 +211,7 @@ export default class CatRace {
     this.state = STATES.RACING;
     this.raceElapsed = 0;
     this.bgX = 0;
+    this.rankBarSuppressed = false;
     this.finishLine = TRACK_LENGTH;
 
     const avgSpd = this.finishLine / RACE_SECS;
@@ -278,6 +291,8 @@ export default class CatRace {
         const slumpMult = 1 - FINISH_SLUMP_DECAY * rush;
 
         const sortedByX = [...this.cats].sort((a, b) => b.worldX - a.worldX);
+        const stillRacing = sortedByX.filter((c) => !c.hasFinished);
+        const raceLeaderId = stillRacing.length ? stillRacing[0].id : null;
         const topPack = new Set(
           sortedByX.slice(0, Math.min(TOP_PACK_RANK_COUNT, sortedByX.length)).map((c) => c.id),
         );
@@ -312,6 +327,9 @@ export default class CatRace {
           const surgeEff = 1 - SURGE_FATIGUE_DAMP * c.surgeFatigue;
           let packSurgeMult = topPack.has(c.id) ? TOP_PACK_SURGE_MULT : 1;
           if (tailPack.has(c.id)) packSurgeMult *= TAIL_PACK_SURGE_MULT;
+          if (raceLeaderId !== null && c.id === raceLeaderId) {
+            packSurgeMult = RACE_LEADER_SURGE_MULT;
+          }
 
           let sf = 1
             + c.sineA[0] * Math.sin(t * c.sineFreq[0] * Math.PI * 2 + c.sinePhase[0])
@@ -322,7 +340,10 @@ export default class CatRace {
             ? SPEED_FACTOR_FLOOR_LEAD_PACK
             : SPEED_FACTOR_FLOOR;
           sf = Math.min(SPEED_FACTOR_CAP, Math.max(sfFloor, sf));
-          const frontPace = topPack.has(c.id) ? TOP_PACK_PACE_MULT : 1;
+          let frontPace = topPack.has(c.id) ? TOP_PACK_PACE_MULT : 1;
+          if (raceLeaderId !== null && c.id === raceLeaderId) {
+            frontPace = RACE_LEADER_PACE_MULT;
+          }
           c.worldX += c.baseSpeed * paceMult * sf * frontPace * dt;
         }
 
@@ -333,6 +354,10 @@ export default class CatRace {
         for (const c of newlyFinished) {
           c.hasFinished = true;
           this.finishOrder.push(c);
+        }
+        const rankBarDoneN = Math.min(5, this.numCats);
+        if (!this.rankBarSuppressed && this.finishOrder.length >= rankBarDoneN) {
+          this.rankBarSuppressed = true;
         }
 
         const leader = this.cats.reduce((best, c) =>
@@ -364,6 +389,7 @@ export default class CatRace {
   }
 
   updateRankSlots(dt) {
+    if (this.rankBarSuppressed) return;
     const show = Math.min(5, this.numCats);
     const slotW = 200;
     const startX = Math.round((W - show * slotW) / 2);
@@ -585,6 +611,7 @@ export default class CatRace {
   }
 
   drawRankBar() {
+    if (this.rankBarSuppressed) return;
     const ctx = this.ctx;
     const slotW = 200;
     const slotH = RANK_BAR_H - 12;

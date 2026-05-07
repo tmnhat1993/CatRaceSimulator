@@ -42,6 +42,10 @@ export const TOP_PACK_RANK_COUNT = 20;
 export const TOP_PACK_SURGE_MULT = 0.12;
 /** Front-pack drag on all movement (stacks with surge penalty). */
 export const TOP_PACK_PACE_MULT = 0.84;
+/** Among cats still racing: #1 by worldX gets surge × this (weakest breakaway; others can close). */
+export const RACE_LEADER_SURGE_MULT = 0.03;
+/** Same current leader: pace multiplier (extra drag vs {@link TOP_PACK_PACE_MULT}). */
+export const RACE_LEADER_PACE_MULT = 0.76;
 /** Slowest fraction of the field (by rank): surge term × this vs the rest (catch-up boost). */
 export const TAIL_PACK_FRACTION = 0.2;
 export const TAIL_PACK_SURGE_MULT = 2;
