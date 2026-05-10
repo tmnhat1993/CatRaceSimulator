@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cat Race Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/styles/main.css">
+</head>
+<body>
+
+  <!-- Start Screen Overlay -->
+  <div id="startScreen">
+    <div id="startPanel">
+      <h1 id="gameTitle">CAT RACE SIMULATOR</h1>
+      <div id="inputGroup">
+        <label for="catCount">Số mèo tham gia</label>
+        <input type="number" id="catCount" min="2" max="300" value="300">
+      </div>
+      <button id="startBtn">
+        <img id="startBtnImg" src="./assets/images/start-btn.png" alt="Start">
+      </button>
+    </div>
+  </div>
+
+  <!-- Game Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
